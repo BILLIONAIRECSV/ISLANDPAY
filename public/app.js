@@ -43,7 +43,7 @@ function cur(){const h=decodeURIComponent((location.hash||'#home').slice(1));con
 function go(v){if(location.hash==='#'+v)route();else location.hash=v}
 function render(){const{v,p}=cur();const wide=v==='admin';$('app').classList.toggle('wide',wide);$('nav').classList.toggle('wide',wide);$('app').innerHTML=V[v](p);
   const tabs=[['home','⌂','Home'],['buy','＋','Buy'],['activity','☰','Activity'],['account','👤',S.user?'Account':'Log in']];if(isAdmin())tabs.push(['admin','★','Admin']);
-  $('nav').innerHTML=tabs.map(t=>`<a class="${t[0]===v?'on':''}" href="#${t[0]}"><i>${t[1]}</i>${t[2]}</a>`).join('');}
+  $('nav').innerHTML=`<a class="brand" href="#home" aria-label="Island Pay home"><img src="${LOGO}" alt="IslandPay"></a>`+tabs.map(t=>`<a class="${t[0]===v?'on':''}" href="#${t[0]}"><i>${t[1]}</i>${t[2]}</a>`).join('');}
 async function route(){const{v,p}=cur();render();window.scrollTo(0,0);try{await (L[v]?.(p))}catch(e){if(e.status!==401)toast(e.message,'bad')}render()}
 async function loadMe(){if(!S.user){S.me=null;return}try{S.me=await api('/api/me')}catch(e){if(e.status===401){S.me=null}else throw e}}
 const needLogin=msg=>`<div class="bal"><b>${msg}</b><p class="mut">Log in or create a free Island Pay account to continue.</p><button class="btn" onclick="A.go('account')">Log in or sign up</button></div>`;
