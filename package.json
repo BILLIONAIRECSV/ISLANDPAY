@@ -6,10 +6,15 @@
     "dev": "netlify dev"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.0",
-    "resend": "^6.0.0"
+    "@netlify/database": "^2.0.3",
+    "@netlify/functions": "^6.1.1",
+    "@netlify/identity": "^2.0.1",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "resend": "^6.38.1"
   },
   "devDependencies": {
-    "netlify-cli": "^23.0.0"
+    "@types/node": "^26.6.6",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "typescript": "^5.9.3"
   }
 }
