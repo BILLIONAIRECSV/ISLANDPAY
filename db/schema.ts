@@ -163,3 +163,105 @@ export const emailEvents = pgTable("email_events", {
   error: text("error"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
+
+// ---------------- IP Coin wallet & crypto shop ----------------
+// IP Coin balances live in customer_balances with currency "IPC" (integer coins, 1 USD = 10 coins).
+// Coin movements are written to ledger_entries with currency "IPC" (account "coin_wallet").
+
+// Card/bank purchases of IP Coin packages. Coins are credited only after verified provider approval.
+export const coinOrders = pgTable("coin_orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull(),
+  email: text("email").notNull(),
+  provider: text("provider").notNull(), // cxpay | sentoo
+  method: text("method").notNull(), // card | bank
+  packageId: text("package_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  coins: bigint("coins", { mode: "number" }).notNull(),
+  providerFeeMinor: money("provider_fee_minor"), // estimated processing fee (business cost)
+  refundedMinor: money("refunded_minor"),
+  // created | pending | paid | failed | refunded | review
+  status: text("status").notNull().default("created"),
+  providerTransactionId: text("provider_transaction_id"),
+  providerResponse: text("provider_response"),
+  testMode: boolean("test_mode").notNull().default(true),
+  failureReason: text("failure_reason"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  paidAt: ts("paid_at"),
+}, (t) => [
+  uniqueIndex("coin_orders_idem_uq").on(t.userId, t.idempotencyKey),
+  uniqueIndex("coin_orders_provider_tx_uq").on(t.provider, t.providerTransactionId),
+  index("coin_orders_user_idx").on(t.userId, t.createdAt),
+  check("coin_orders_amount_ck", sql`${t.amountMinor} > 0 and ${t.coins} > 0`),
+]);
+
+// Short-lived server-side price quotes for the crypto shop (locks rate & fees for a few minutes).
+export const cryptoQuotes = pgTable("crypto_quotes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull(),
+  asset: text("asset").notNull(), // USDT | BTC
+  network: text("network").notNull(),
+  coins: bigint("coins", { mode: "number" }).notNull(),
+  usdMinor: bigint("usd_minor", { mode: "number" }).notNull(),
+  serviceFeeMinor: bigint("service_fee_minor", { mode: "number" }).notNull(),
+  networkFeeMinor: bigint("network_fee_minor", { mode: "number" }).notNull(),
+  rateUsd: text("rate_usd").notNull(),
+  rateSource: text("rate_source").notNull(),
+  cryptoBaseUnits: bigint("crypto_base_units", { mode: "number" }).notNull(), // sats / USDT micro-units
+  usedAt: ts("used_at"),
+  expiresAt: ts("expires_at").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+// Customer crypto purchases paid with IP Coins. Coins are deducted atomically at creation.
+export const cryptoRedemptions = pgTable("crypto_redemptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  reference: text("reference").notNull().unique(), // human-friendly unique reference, e.g. IPX-7F3K9Q2M
+  userId: text("user_id").notNull(),
+  email: text("email").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  quoteId: uuid("quote_id").notNull().unique(),
+  asset: text("asset").notNull(),
+  network: text("network").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  coins: bigint("coins", { mode: "number" }).notNull(),
+  usdMinor: bigint("usd_minor", { mode: "number" }).notNull(),
+  serviceFeeMinor: bigint("service_fee_minor", { mode: "number" }).notNull(),
+  networkFeeMinor: bigint("network_fee_minor", { mode: "number" }).notNull(),
+  rateUsd: text("rate_usd").notNull(),
+  cryptoBaseUnits: bigint("crypto_base_units", { mode: "number" }).notNull(),
+  // pending | processing | completed | failed | refunded
+  status: text("status").notNull().default("pending"),
+  fulfillment: text("fulfillment").notNull().default("admin_queue"), // admin_queue | provider name
+  fulfillmentReference: text("fulfillment_reference"),
+  txHash: text("tx_hash"),
+  verification: text("verification"), // e.g. "mempool.space: confirmed, output matched" | "manual: admin attestation"
+  failureReason: text("failure_reason"),
+  handledBy: text("handled_by"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  completedAt: ts("completed_at"),
+}, (t) => [
+  uniqueIndex("crypto_redemptions_idem_uq").on(t.userId, t.idempotencyKey),
+  uniqueIndex("crypto_redemptions_tx_uq").on(t.network, t.txHash),
+  index("crypto_redemptions_user_idx").on(t.userId, t.createdAt),
+  index("crypto_redemptions_status_idx").on(t.status),
+  check("crypto_redemptions_amount_ck", sql`${t.coins} > 0 and ${t.cryptoBaseUnits} > 0`),
+]);
+
+// Actual business-held crypto reserves (separate from customer coin liabilities and fiat cash).
+export const cryptoReserveMovements = pgTable("crypto_reserve_movements", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  asset: text("asset").notNull(),
+  network: text("network").notNull(),
+  direction: text("direction").notNull(), // in | out
+  baseUnits: bigint("base_units", { mode: "number" }).notNull(),
+  redemptionId: uuid("redemption_id"),
+  txHash: text("tx_hash"),
+  memo: text("memo").notNull(),
+  actorEmail: text("actor_email"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [check("crypto_reserve_amount_ck", sql`${t.baseUnits} > 0`)]);

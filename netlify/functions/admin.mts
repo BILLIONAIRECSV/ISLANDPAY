@@ -9,6 +9,7 @@ import { audit } from "../../lib/audit.js";
 import { depositCurrency } from "../../lib/money.js";
 import { adminEmails, sendEmail, templates } from "../../lib/email.js";
 import { applyProviderOrder, reverseDepositTx, runEmails } from "../../lib/ledger.js";
+import { coinAdmin } from "../../lib/admin-coins.js";
 import { banxaCheckoutReady, banxaConfig, banxaWebhookReady, getOrder } from "../../lib/banxa.js";
 
 const destLabel = (d: typeof payoutDestinations.$inferSelect) =>
@@ -276,6 +277,8 @@ export default async (req: Request, context: Context) => {
     case "webhooks":
       return json({ entries: await db.select({ id: webhookEvents.id, eventKey: webhookEvents.eventKey, result: webhookEvents.result, createdAt: webhookEvents.createdAt, processedAt: webhookEvents.processedAt }).from(webhookEvents).orderBy(desc(webhookEvents.createdAt)).limit(200) });
   }
+  const extra = await coinAdmin(admin, req, resource!, id, action, body, url);
+  if (extra) return extra;
   return error(404, "Not found");
 };
 
